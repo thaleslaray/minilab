@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MISSION CONTROL — MiniLab 3</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a1a;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+    color: #00ffcc;
+    user-select: none;
+  }
+  canvas {
+    display: block;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: 0;
+  }
+
+  /* HUD Overlay */
+  #hud {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: 10;
+    pointer-events: none;
+  }
+  #hud * { pointer-events: none; }
+
+  .hud-status {
+    position: absolute;
+    top: 20px; left: 24px;
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .hud-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ff3333;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  .hud-dot.online {
+    background: #00ff88;
+    box-shadow: 0 0 8px #00ff88;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .hud-clock {
+    position: absolute;
+    top: 20px; right: 24px;
+    font-size: 18px;
+    letter-spacing: 3px;
+    text-shadow: 0 0 12px #00ffcc;
+  }
+
+  .hud-scene {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 16px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    text-shadow: 0 0 20px #00ffcc;
+    opacity: 0.8;
+  }
+
+  /* Knob bars left */
+  .hud-knobs {
+    position: absolute;
+    top: 60px; left: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    opacity: 0.7;
+  }
+  .hud-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 14px;
+  }
+  .hud-bar-label {
+    width: 60px;
+    text-align: right;
+    color: #00ccaa;
+    font-size: 9px;
+    text-transform: uppercase;
+  }
+  .hud-bar-track {
+    width: 80px;
+    height: 4px;
+    background: rgba(0,255,204,0.15);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .hud-bar-fill {
+    height: 100%;
+    background: #00ffcc;
+    border-radius: 2px;
+    transition: width 0.08s linear;
+    box-shadow: 0 0 6px #00ffcc;
+  }
+  .hud-bar-value {
+    width: 28px;
+    font-size: 9px;
+    color: #00ffcc;
+  }
+
+  /* Fader bars right */
+  .hud-faders {
+    position: absolute;
+    top: 60px; right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    opacity: 0.7;
+  }
+  .hud-fader-bar .hud-bar-fill {
+    background: #ff6600;
+    box-shadow: 0 0 6px #ff6600;
+  }
+  .hud-fader-bar .hud-bar-label {
+    color: #cc8844;
+  }
+  .hud-fader-bar .hud-bar-value {
+    color: #ff6600;
+  }
+
+  /* Pad flash */
+  .hud-pad-flash {
+    position: absolute;
+    bottom: 60px; left: 24px;
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: #ff6600;
+    text-shadow: 0 0 12px #ff6600;
+    opacity: 0;
+    transition: opacity 0.05s;
+  }
+  .hud-pad-flash.active {
+    opacity: 1;
+  }
+
+  /* Energy bar (mod wheel) */
+  .hud-energy {
+    position: absolute;
+    bottom: 60px; right: 24px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    opacity: 0.7;
+  }
+  .hud-energy-track {
+    width: 120px;
+    height: 6px;
+    background: rgba(255,102,0,0.15);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .hud-energy-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff6600, #ffcc00);
+    border-radius: 3px;
+    transition: width 0.1s;
+    box-shadow: 0 0 8px #ff6600;
+  }
+
+  /* Start screen */
+  #start-screen {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: 100;
+    background: #0a0a1a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+    cursor: pointer;
+  }
+  #start-screen h1 {
+    font-size: 28px;
+    letter-spacing: 10px;
+    text-transform: uppercase;
+    text-shadow: 0 0 30px #00ffcc, 0 0 60px rgba(0,255,204,0.3);
+    color: #00ffcc;
+  }
+  #start-screen p {
+    font-size: 14px;
+    letter-spacing: 3px;
+    color: rgba(0,255,204,0.5);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  #start-screen .subtitle {
+    font-size: 11px;
+    color: rgba(255,102,0,0.5);
+    letter-spacing: 2px;
+  }
+
+  /* CC Learn Modal */
+  #learn-modal {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: 50;
+    background: rgba(10,10,26,0.92);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+  }
+  #learn-modal.active {
+    display: flex;
+  }
+  #learn-modal h2 {
+    font-size: 22px;
+    letter-spacing: 6px;
+    color: #ff6600;
+    text-shadow: 0 0 20px rgba(255,102,0,0.5);
+  }
+  .learn-instruction {
+    font-size: 16px;
+    letter-spacing: 3px;
+    color: #00ffcc;
+    text-shadow: 0 0 12px #00ffcc;
+  }
+  .learn-progress {
+    font-size: 12px;
+    color: rgba(0,255,204,0.5);
+    letter-spacing: 2px;
+  }
+  .learn-skip {
+    margin-top: 20px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 2px;
+    cursor: pointer;
+    pointer-events: auto;
+    padding: 8px 16px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 4px;
+    transition: all 0.2s;
+  }
+  .learn-skip:hover {
+    color: rgba(255,255,255,0.7);
+    border-color: rgba(255,255,255,0.4);
+  }
+
+  /* Recalibrate button */
+  #recalibrate-btn {
+    position: fixed;
+    bottom: 16px; right: 16px;
+    z-index: 20;
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.2);
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+  }
+  #recalibrate-btn:hover {
+    color: rgba(255,255,255,0.6);
+    border-color: rgba(255,255,255,0.3);
+  }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="hud">
+  <div class="hud-status">
+    <div class="hud-dot" id="hud-dot"></div>
+    <span id="hud-status-text">SEARCHING DEVICE...</span>
+  </div>
+  <div class="hud-clock" id="hud-clock">T+00:00:00</div>
+  <div class="hud-scene" id="hud-scene">LAUNCH PAD</div>
+  <div class="hud-knobs" id="hud-knobs"></div>
+  <div class="hud-faders" id="hud-faders"></div>
+  <div class="hud-pad-flash" id="hud-pad-flash">PAD 1</div>
+  <div class="hud-energy">
+    <span>ENERGY</span>
+    <div class="hud-energy-track">
+      <div class="hud-energy-fill" id="hud-energy-fill" style="width:0%"></div>
+    </div>
+  </div>
+</div>
+
+<div id="start-screen">
+  <h1>Mission Control</h1>
+  <p>CLICK TO LAUNCH</p>
+  <span class="subtitle">MiniLab 3 Visual Synth</span>
+</div>
+
+<div id="learn-modal">
+  <h2>CALIBRATION</h2>
+  <div class="learn-instruction" id="learn-instruction">TURN KNOB 1</div>
+  <div class="learn-progress" id="learn-progress">0 / 12</div>
+  <div class="learn-skip" id="learn-skip">SKIP CALIBRATION</div>
+</div>
+
+<button id="recalibrate-btn">RECALIBRATE</button>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  particleSpeed: 0.5, colorHue: 0.0, starDensity: 0.5, thrustIntensity: 0.3,
+  orbitalRadius: 0.5, bloomAmount: 0.2, rotationSpeed: 0.5, zoom: 0.5,
+  oscDetune: 0.5, filterCutoff: 0.6, reverbMix: 0.3, masterVolume: 0.7,
+  pitchBend: 0.5, modWheel: 0.0, activeScene: 0,
+  midiConnected: false, ccLearnActive: false, startTime: 0,
+};
+const display = { ...state };
+
+const KNOB_KEYS = ['particleSpeed','colorHue','starDensity','thrustIntensity','orbitalRadius','bloomAmount','rotationSpeed','zoom'];
+const FADER_KEYS = ['oscDetune','filterCutoff','reverbMix','masterVolume'];
+const KNOB_LABELS = ['SPEED','HUE','STARS','THRUST','ORBIT','BLOOM','ROTATE','ZOOM'];
+const FADER_LABELS = ['DETUNE','FILTER','REVERB','VOLUME'];
+const SCENE_NAMES = ['LAUNCH PAD','LIFTOFF','ATMOSPHERE EXIT','ORBIT','DEEP SPACE','WARP SPEED','ALIEN ENCOUNTER','RE-ENTRY'];
+const PAD_EFFECT_NAMES = ['RADIAL BURST','SHOCKWAVE','PARTICLE RAIN','SPIRAL THRUST','HYPERSPACE','DEBRIS FIELD','AFTERBURNER','STAGE SEPARATION'];
+
+// ============================================================
+// MIDI CONTROLLER
+// ============================================================
+class MIDIController {
+  constructor() {
+    this.input = null;
+    this.listeners = {};
+    this.ccMap = {};
+    this.slotLabels = [
+      'TURN KNOB 1 (Speed)','TURN KNOB 2 (Hue)','TURN KNOB 3 (Stars)','TURN KNOB 4 (Thrust)',
+      'TURN KNOB 5 (Orbit)','TURN KNOB 6 (Bloom)','TURN KNOB 7 (Rotate)','TURN KNOB 8 (Zoom)',
+      'MOVE FADER 1 (Detune)','MOVE FADER 2 (Filter)','MOVE FADER 3 (Reverb)','MOVE FADER 4 (Volume)'
+    ];
+    this.learnIndex = 0;
+    this.learnMode = false;
+    this.learnedCCs = new Array(12).fill(null);
+  }
+
+  on(event, fn) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(fn);
+  }
+
+  emit(event, data) {
+    const fns = this.listeners[event];
+    if (fns) for (let i = 0; i < fns.length; i++) fns[i](data);
+  }
+
+  async init() {
+    try {
+      const access = await navigator.requestMIDIAccess({ sysex: false });
+      this.scanInputs(access);
+      access.onstatechange = () => this.scanInputs(access);
+    } catch (e) {
+      console.warn('Web MIDI not available:', e);
+      this.emit('connectionChange', false);
+    }
+  }
+
+  scanInputs(access) {
+    let found = null;
+    for (const input of access.inputs.values()) {
+      if (input.name.toLowerCase().includes('minilab')) { found = input; break; }
+    }
+    if (!found) {
+      for (const input of access.inputs.values()) { found = input; break; }
+    }
+    if (found && found !== this.input) {
+      if (this.input) this.input.onmidimessage = null;
+      this.input = found;
+      this.input.onmidimessage = (e) => this.onMessage(e);
+      this.emit('connectionChange', true);
+    } else if (!found) {
+      this.input = null;
+      this.emit('connectionChange', false);
+    }
+  }
+
+  onMessage(e) {
+    const d = e.data;
+    const type = d[0] & 0xF0;
+    const ch = (d[0] & 0x0F) + 1;
+
+    if (type === 0x90 && d[2] > 0) {
+      this.emit('noteOn', { channel: ch, note: d[1], velocity: d[2] });
+    } else if (type === 0x80 || (type === 0x90 && d[2] === 0)) {
+      this.emit('noteOff', { channel: ch, note: d[1] });
+    } else if (type === 0xB0) {
+      if (d[1] === 1) { this.emit('modWheel', { value: d[2] }); return; }
+      if (this.learnMode) { this.handleLearn(d[1]); }
+      else { this.emit('cc', { channel: ch, cc: d[1], value: d[2] }); }
+    } else if (type === 0xE0) {
+      this.emit('pitchBend', { value: ((d[2] << 7) | d[1]) / 16383 });
+    } else if (type === 0xA0) {
+      this.emit('polyAftertouch', { channel: ch, note: d[1], pressure: d[2] });
+    } else if (type === 0xD0) {
+      this.emit('channelAftertouch', { channel: ch, pressure: d[1] });
+    }
+  }
+
+  loadSavedMapping() {
+    const saved = localStorage.getItem('minilab3_cc_map');
+    if (saved) {
+      try {
+        this.learnedCCs = JSON.parse(saved);
+        if (this.learnedCCs.length === 12 && this.learnedCCs.every(v => v !== null)) {
+          this.buildCCMap();
+          return true;
+        }
+      } catch(e) { /* ignore */ }
+    }
+    return false;
+  }
+
+  buildCCMap() {
+    this.ccMap = {};
+    for (let i = 0; i < this.learnedCCs.length; i++) {
+      if (this.learnedCCs[i] !== null) this.ccMap[this.learnedCCs[i]] = i;
+    }
+  }
+
+  startLearn() {
+    this.learnMode = true;
+    this.learnIndex = 0;
+    this.learnedCCs = new Array(12).fill(null);
+    state.ccLearnActive = true;
+    this.emit('learnUpdate', { index: 0, total: 12, label: this.slotLabels[0] });
+  }
+
+  handleLearn(ccNumber) {
+    if (ccNumber === 1) return;
+    if (this.learnedCCs.includes(ccNumber)) return;
+    this.learnedCCs[this.learnIndex] = ccNumber;
+    this.learnIndex++;
+    if (this.learnIndex >= 12) {
+      this.finishLearn();
+    } else {
+      this.emit('learnUpdate', { index: this.learnIndex, total: 12, label: this.slotLabels[this.learnIndex] });
+    }
+  }
+
+  finishLearn() {
+    this.learnMode = false;
+    state.ccLearnActive = false;
+    this.buildCCMap();
+    localStorage.setItem('minilab3_cc_map', JSON.stringify(this.learnedCCs));
+    this.emit('learnComplete', {});
+  }
+
+  skipLearn() {
+    this.learnedCCs = [74, 71, 76, 77, 93, 18, 19, 16, 85, 86, 87, 88];
+    this.finishLearn();
+  }
+
+  getSlotForCC(cc) {
+    const s = this.ccMap[cc];
+    return s !== undefined ? s : -1;
+  }
+}
+
+// ============================================================
+// AUDIO ENGINE
+// ============================================================
+class AudioEngine {
+  constructor() {
+    this.ctx = null;
+    this.masterGain = null;
+    this.filter = null;
+    this.reverbDry = null;
+    this.reverbWet = null;
+    this.convolver = null;
+    this.voices = {};
+    this.voiceOrder = [];
+  }
+
+  init() {
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    this.masterGain = this.ctx.createGain();
+    this.masterGain.gain.value = state.masterVolume;
+    this.masterGain.connect(this.ctx.destination);
+
+    this.filter = this.ctx.createBiquadFilter();
+    this.filter.type = 'lowpass';
+    this.filter.frequency.value = 4000;
+    this.filter.Q.value = 3;
+
+    this.reverbDry = this.ctx.createGain();
+    this.reverbDry.gain.value = 0.7;
+    this.reverbWet = this.ctx.createGain();
+    this.reverbWet.gain.value = 0.3;
+
+    this.convolver = this.ctx.createConvolver();
+    const rate = this.ctx.sampleRate;
+    const len = rate * 2.5;
+    const irBuf = this.ctx.createBuffer(2, len, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = irBuf.getChannelData(ch);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    }
+    this.convolver.buffer = irBuf;
+
+    this.filter.connect(this.reverbDry);
+    this.filter.connect(this.convolver);
+    this.reverbDry.connect(this.masterGain);
+    this.convolver.connect(this.reverbWet);
+    this.reverbWet.connect(this.masterGain);
+  }
+
+  noteToFreq(n) { return 440 * Math.pow(2, (n - 69) / 12); }
+
+  noteOn(note, velocity) {
+    if (!this.ctx) return;
+    if (this.voiceOrder.length >= 8) this.killVoice(this.voiceOrder.shift());
+
+    const freq = this.noteToFreq(note);
+    const vol = (velocity / 127) * 0.3;
+    const now = this.ctx.currentTime;
+
+    const osc1 = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    osc1.type = 'sawtooth';
+    osc2.type = 'square';
+    osc1.frequency.value = freq;
+    osc2.frequency.value = freq * 1.003;
+    osc2.detune.value = (state.oscDetune - 0.5) * 40;
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(vol, now + 0.01);
+    gain.gain.linearRampToValueAtTime(vol * 0.7, now + 0.12);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(this.filter);
+    osc1.start(now);
+    osc2.start(now);
+
+    this.voices[note] = { osc1, osc2, gain };
+    this.voiceOrder.push(note);
+  }
+
+  noteOff(note) {
+    if (!this.ctx || !this.voices[note]) return;
+    const v = this.voices[note];
+    const now = this.ctx.currentTime;
+    v.gain.gain.cancelScheduledValues(now);
+    v.gain.gain.setValueAtTime(v.gain.gain.value, now);
+    v.gain.gain.linearRampToValueAtTime(0, now + 0.3);
+    const n = note;
+    setTimeout(() => this.killVoice(n), 350);
+  }
+
+  killVoice(note) {
+    const v = this.voices[note];
+    if (!v) return;
+    try { v.osc1.stop(); } catch(e) { /* ok */ }
+    try { v.osc2.stop(); } catch(e) { /* ok */ }
+    try { v.osc1.disconnect(); } catch(e) { /* ok */ }
+    try { v.osc2.disconnect(); } catch(e) { /* ok */ }
+    try { v.gain.disconnect(); } catch(e) { /* ok */ }
+    delete this.voices[note];
+    this.voiceOrder = this.voiceOrder.filter(n => n !== note);
+  }
+
+  playPadHit(velocity) {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const vol = (velocity / 127) * 0.4;
+
+    const bufLen = this.ctx.sampleRate * 0.15;
+    const buf = this.ctx.createBuffer(1, bufLen, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 3);
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buf;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 2000 + velocity * 30;
+    bp.Q.value = 2;
+    const ng = this.ctx.createGain();
+    ng.gain.value = vol;
+    noise.connect(bp);
+    bp.connect(ng);
+    ng.connect(this.masterGain);
+    noise.start(now);
+
+    const sub = this.ctx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(120, now);
+    sub.frequency.exponentialRampToValueAtTime(30, now + 0.2);
+    const sg = this.ctx.createGain();
+    sg.gain.setValueAtTime(vol * 0.6, now);
+    sg.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    sub.connect(sg);
+    sg.connect(this.masterGain);
+    sub.start(now);
+    sub.stop(now + 0.35);
+  }
+
+  updateParams() {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    this.filter.frequency.setTargetAtTime(100 * Math.pow(80, state.filterCutoff), now, 0.02);
+    this.reverbDry.gain.setTargetAtTime(1 - state.reverbMix, now, 0.02);
+    this.reverbWet.gain.setTargetAtTime(state.reverbMix, now, 0.02);
+    this.masterGain.gain.setTargetAtTime(state.masterVolume, now, 0.02);
+    for (const note in this.voices) {
+      this.voices[note].osc2.detune.setTargetAtTime((state.oscDetune - 0.5) * 40, now, 0.02);
+    }
+  }
+
+  applyPitchBend(bendNorm) {
+    if (!this.ctx) return;
+    const cents = (bendNorm - 0.5) * 400;
+    const now = this.ctx.currentTime;
+    for (const note in this.voices) {
+      const base = this.noteToFreq(parseInt(note));
+      const bent = base * Math.pow(2, cents / 1200);
+      this.voices[note].osc1.frequency.setTargetAtTime(bent, now, 0.01);
+      this.voices[note].osc2.frequency.setTargetAtTime(bent * 1.003, now, 0.01);
+    }
+  }
+}
+
+// ============================================================
+// VISUAL ENGINE
+// ============================================================
+class VisualEngine {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.stars = [];
+    this.particles = [];
+    this.effects = [];
+    this.maxParticles = 500;
+    this.w = 0; this.h = 0; this.cx = 0; this.cy = 0;
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    this.initStars(300);
+    this.initParticlePool();
+  }
+
+  resize() {
+    const dpr = window.devicePixelRatio || 1;
+    this.w = window.innerWidth;
+    this.h = window.innerHeight;
+    this.canvas.width = this.w * dpr;
+    this.canvas.height = this.h * dpr;
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.cx = this.w / 2;
+    this.cy = this.h / 2;
+  }
+
+  initStars(count) {
+    this.stars = [];
+    for (let i = 0; i < count; i++) this.addStar();
+  }
+
+  addStar() {
+    this.stars.push({
+      x: Math.random() * this.w, y: Math.random() * this.h,
+      z: Math.random() * 3 + 0.5, brightness: Math.random() * 0.8 + 0.2,
+      phase: Math.random() * Math.PI * 2, size: Math.random() * 1.5 + 0.5,
+    });
+  }
+
+  initParticlePool() {
+    this.particles = [];
+    for (let i = 0; i < this.maxParticles; i++) {
+      this.particles.push({ alive: false, x:0, y:0, vx:0, vy:0, life:0, maxLife:1, size:2, hue:30 });
+    }
+  }
+
+  emitParticle(x, y, vx, vy, life, size, hue) {
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      if (!p.alive) {
+        p.alive = true; p.x = x; p.y = y; p.vx = vx; p.vy = vy;
+        p.life = life; p.maxLife = life; p.size = size; p.hue = hue;
+        return;
+      }
+    }
+  }
+
+  triggerEffect(padIndex, velocity) {
+    const intensity = velocity / 127;
+    this.effects.push({ type: padIndex, time: 0, duration: 0.8 + intensity * 0.8, intensity, alive: true });
+  }
+
+  update(dt) {
+    const s = display;
+    const energy = s.modWheel;
+
+    // Star density
+    const target = Math.floor(50 + s.starDensity * 450);
+    while (this.stars.length < target) this.addStar();
+    while (this.stars.length > target) this.stars.pop();
+
+    // Emit thrust
+    const rate = Math.floor(s.thrustIntensity * 15 * (1 + energy * 3));
+    const speedMult = 0.2 + s.particleSpeed * 4.8;
+    for (let i = 0; i < rate; i++) {
+      const spread = (Math.random() - 0.5) * 0.6;
+      const spd = (2 + Math.random() * 4) * speedMult;
+      const dir = Math.PI / 2 + spread;
+      this.emitParticle(
+        this.cx + (Math.random() - 0.5) * 10, this.cy + 30,
+        Math.cos(dir) * spd, Math.sin(dir) * spd,
+        0.5 + Math.random() * 0.8, 1 + Math.random() * 3, 20 + Math.random() * 20
+      );
+    }
+
+    // Update particles
+    const dt60 = dt * 60;
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      if (!p.alive) continue;
+      p.x += p.vx * dt60;
+      p.y += p.vy * dt60;
+      p.life -= dt;
+      p.size *= 0.998;
+      if (p.life <= 0) p.alive = false;
+    }
+
+    // Update effects
+    for (let i = this.effects.length - 1; i >= 0; i--) {
+      this.effects[i].time += dt;
+      if (this.effects[i].time >= this.effects[i].duration) this.effects.splice(i, 1);
+    }
+
+    // Star parallax from pitch bend
+    const bendOff = (s.pitchBend - 0.5) * 100 * 0.01 * dt60;
+    for (let i = 0; i < this.stars.length; i++) {
+      const star = this.stars[i];
+      star.x += bendOff * star.z;
+      if (star.x < 0) star.x += this.w;
+      if (star.x > this.w) star.x -= this.w;
+    }
+  }
+
+  render(time) {
+    const ctx = this.ctx;
+    const s = display;
+
+    // Scene background
+    const sceneColors = [[10,10,26],[5,5,15],[8,12,30],[5,8,20],[2,2,10],[10,5,20],[8,15,8],[30,15,5]];
+    const sc = sceneColors[s.activeScene] || sceneColors[0];
+    ctx.fillStyle = 'rgba(' + sc[0] + ',' + sc[1] + ',' + sc[2] + ',0.18)';
+    ctx.fillRect(0, 0, this.w, this.h);
+
+    const hue = s.colorHue * 360;
+    const bloom = s.bloomAmount * 30;
+
+    // Stars
+    for (let i = 0; i < this.stars.length; i++) {
+      const star = this.stars[i];
+      const twinkle = Math.sin(time * 2 + star.phase) * 0.3 + 0.7;
+      ctx.globalAlpha = star.brightness * twinkle;
+      ctx.fillStyle = 'hsl(' + ((200 + hue) % 360) + ', 20%, 90%)';
+      ctx.beginPath();
+      ctx.arc(star.x, star.y, star.size * (0.8 + s.zoom * 0.4), 0, 6.283);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Effects
+    for (let i = 0; i < this.effects.length; i++) {
+      this.renderEffect(ctx, this.effects[i], time, hue, bloom);
+    }
+
+    // Particles
+    ctx.shadowBlur = bloom * 0.5;
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      if (!p.alive) continue;
+      const alpha = Math.max(0, p.life / p.maxLife);
+      const h = (p.hue + hue * 0.3) % 360;
+      ctx.globalAlpha = alpha * 0.8;
+      ctx.shadowColor = 'hsl(' + h + ', 100%, 60%)';
+      ctx.fillStyle = 'hsl(' + h + ', 100%, ' + (50 + alpha * 30) + '%)';
+      ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+
+    // Spacecraft
+    this.renderSpacecraft(ctx, time, hue, bloom);
+  }
+
+  renderSpacecraft(ctx, time, hue, bloom) {
+    const s = display;
+    const bob = Math.sin(time * 1.5) * 3;
+    const scale = 0.6 + s.zoom * 0.8;
+    const rot = (s.rotationSpeed - 0.5) * time * 2;
+    const shipHue = (180 + hue) % 360;
+
+    ctx.save();
+    ctx.translate(this.cx, this.cy + bob);
+    ctx.rotate(rot);
+    ctx.scale(scale, scale);
+
+    ctx.shadowBlur = bloom + 8;
+    ctx.shadowColor = 'hsl(' + shipHue + ', 100%, 60%)';
+    ctx.strokeStyle = 'hsl(' + shipHue + ', 80%, 70%)';
+    ctx.lineWidth = 2;
+    ctx.fillStyle = 'hsla(' + shipHue + ', 60%, 15%, 0.6)';
+
+    // Body
+    ctx.beginPath();
+    ctx.moveTo(0, -35);
+    ctx.lineTo(-18, 15);
+    ctx.lineTo(-10, 20);
+    ctx.lineTo(-5, 30);
+    ctx.lineTo(5, 30);
+    ctx.lineTo(10, 20);
+    ctx.lineTo(18, 15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Cockpit
+    ctx.fillStyle = 'hsla(' + ((shipHue + 30) % 360) + ', 90%, 60%, 0.4)';
+    ctx.beginPath();
+    ctx.ellipse(0, -10, 5, 8, 0, 0, 6.283);
+    ctx.fill();
+
+    // Wings
+    ctx.strokeStyle = 'hsl(' + shipHue + ', 70%, 50%)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(-18, 15); ctx.lineTo(-30, 25); ctx.lineTo(-18, 22); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(18, 15); ctx.lineTo(30, 25); ctx.lineTo(18, 22); ctx.stroke();
+
+    ctx.restore();
+    ctx.shadowBlur = 0;
+  }
+
+  renderEffect(ctx, e, time, hue, bloom) {
+    const p = e.time / e.duration;
+    const I = e.intensity;
+    const cx = this.cx;
+    const cy = this.cy;
+
+    ctx.save();
+    ctx.shadowBlur = bloom + 10;
+
+    switch(e.type) {
+      case 0: { // Radial burst
+        const r = p * 200 * I;
+        const a = (1 - p) * I;
+        ctx.shadowColor = 'hsla(' + ((30 + hue) % 360) + ', 100%, 60%, ' + a + ')';
+        for (let i = 0; i < 20; i++) {
+          const ang = (i / 20) * 6.283;
+          const rr = r * (0.8 + Math.random() * 0.4);
+          ctx.globalAlpha = a * 0.7;
+          ctx.fillStyle = 'hsl(' + ((30 + hue + i * 5) % 360) + ', 100%, 60%)';
+          ctx.beginPath();
+          ctx.arc(cx + Math.cos(ang) * rr, cy + Math.sin(ang) * rr, 2 + I * 3, 0, 6.283);
+          ctx.fill();
+        }
+        break;
+      }
+      case 1: { // Shockwave
+        const r = p * 300 * I;
+        ctx.globalAlpha = (1 - p) * 0.8;
+        ctx.strokeStyle = 'hsl(' + ((180 + hue) % 360) + ', 100%, 70%)';
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.lineWidth = 3 * (1 - p);
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.283); ctx.stroke();
+        break;
+      }
+      case 2: { // Particle rain
+        ctx.globalAlpha = (1 - p) * I;
+        ctx.fillStyle = 'hsl(' + ((60 + hue) % 360) + ', 100%, 70%)';
+        for (let i = 0; i < 30; i++) {
+          ctx.fillRect(cx + (Math.random() - 0.5) * this.w * 0.8, p * this.h * Math.random(), 1.5, 4 + Math.random() * 8);
+        }
+        break;
+      }
+      case 3: { // Spiral
+        ctx.globalAlpha = (1 - p) * I * 0.6;
+        for (let i = 0; i < 40; i++) {
+          const ang = (i / 40) * 18.85 + time * 3;
+          const r = i * 4 * p * I;
+          ctx.fillStyle = 'hsl(' + ((i * 9 + hue) % 360) + ', 100%, 60%)';
+          ctx.beginPath();
+          ctx.arc(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r, 2, 0, 6.283);
+          ctx.fill();
+        }
+        break;
+      }
+      case 4: { // Hyperspace
+        ctx.globalAlpha = (1 - p * 0.7) * I * 0.5;
+        ctx.strokeStyle = 'hsl(' + ((200 + hue) % 360) + ', 80%, 80%)';
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 40; i++) {
+          const ang = Math.random() * 6.283;
+          const r1 = 50 + Math.random() * 100;
+          const r2 = r1 + 50 + p * 200 * I;
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1);
+          ctx.lineTo(cx + Math.cos(ang) * r2, cy + Math.sin(ang) * r2);
+          ctx.stroke();
+        }
+        break;
+      }
+      case 5: { // Debris
+        ctx.globalAlpha = (1 - p) * I * 0.7;
+        for (let i = 0; i < 15; i++) {
+          const ang = (i / 15) * 6.283 + e.time * 2;
+          const r = 30 + p * 150 * I;
+          ctx.save();
+          ctx.translate(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
+          ctx.rotate(ang + e.time * 5);
+          ctx.fillStyle = 'hsl(' + (hue % 360) + ', 30%, 50%)';
+          ctx.fillRect(-3, -3, 6 * I, 6 * I);
+          ctx.restore();
+        }
+        break;
+      }
+      case 6: { // Afterburner
+        ctx.globalAlpha = (1 - p) * I;
+        const abW = 15 + I * 20 + Math.sin(time * 20) * 3;
+        const abH = 200 * I * (1 - p * 0.5);
+        const grad = ctx.createLinearGradient(cx, cy + 30, cx, cy + 30 + abH);
+        grad.addColorStop(0, 'hsl(' + ((30 + hue) % 360) + ', 100%, 80%)');
+        grad.addColorStop(0.5, 'hsl(' + ((20 + hue) % 360) + ', 100%, 50%)');
+        grad.addColorStop(1, 'transparent');
+        ctx.fillStyle = grad;
+        ctx.fillRect(cx - abW/2, cy + 30, abW, abH);
+        break;
+      }
+      case 7: { // Stage separation
+        ctx.globalAlpha = (1 - p) * I;
+        ctx.strokeStyle = 'hsl(' + ((180 + hue) % 360) + ', 60%, 60%)';
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < 4; i++) {
+          const ang = (i / 4) * 6.283 + 0.785;
+          const dist = p * 120 * I;
+          ctx.save();
+          ctx.translate(cx + Math.cos(ang) * dist, cy + Math.sin(ang) * dist);
+          ctx.rotate(ang + p * 3);
+          ctx.strokeRect(-5, -8, 10, 16);
+          ctx.restore();
+        }
+        break;
+      }
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+}
+
+// ============================================================
+// HUD
+// ============================================================
+class HUD {
+  constructor() {
+    this.knobsEl = document.getElementById('hud-knobs');
+    this.fadersEl = document.getElementById('hud-faders');
+    this.statusDot = document.getElementById('hud-dot');
+    this.statusText = document.getElementById('hud-status-text');
+    this.clockEl = document.getElementById('hud-clock');
+    this.sceneEl = document.getElementById('hud-scene');
+    this.padFlashEl = document.getElementById('hud-pad-flash');
+    this.energyFill = document.getElementById('hud-energy-fill');
+    this.learnModal = document.getElementById('learn-modal');
+    this.learnInstruction = document.getElementById('learn-instruction');
+    this.learnProgress = document.getElementById('learn-progress');
+    this.padFlashTimeout = null;
+    this.knobBars = [];
+    this.faderBars = [];
+    this.buildBars();
+  }
+
+  buildBars() {
+    for (let i = 0; i < 8; i++) {
+      const row = document.createElement('div');
+      row.className = 'hud-bar';
+
+      const label = document.createElement('span');
+      label.className = 'hud-bar-label';
+      label.textContent = KNOB_LABELS[i];
+
+      const track = document.createElement('div');
+      track.className = 'hud-bar-track';
+      const fill = document.createElement('div');
+      fill.className = 'hud-bar-fill';
+      fill.style.width = '50%';
+      track.appendChild(fill);
+
+      const val = document.createElement('span');
+      val.className = 'hud-bar-value';
+      val.textContent = '64';
+
+      row.appendChild(label);
+      row.appendChild(track);
+      row.appendChild(val);
+      this.knobsEl.appendChild(row);
+      this.knobBars.push({ fill, value: val });
+    }
+
+    for (let i = 0; i < 4; i++) {
+      const row = document.createElement('div');
+      row.className = 'hud-bar hud-fader-bar';
+
+      const label = document.createElement('span');
+      label.className = 'hud-bar-label';
+      label.textContent = FADER_LABELS[i];
+
+      const track = document.createElement('div');
+      track.className = 'hud-bar-track';
+      const fill = document.createElement('div');
+      fill.className = 'hud-bar-fill';
+      fill.style.width = '50%';
+      track.appendChild(fill);
+
+      const val = document.createElement('span');
+      val.className = 'hud-bar-value';
+      val.textContent = '64';
+
+      row.appendChild(label);
+      row.appendChild(track);
+      row.appendChild(val);
+      this.fadersEl.appendChild(row);
+      this.faderBars.push({ fill, value: val });
+    }
+  }
+
+  update() {
+    for (let i = 0; i < 8; i++) {
+      const v = display[KNOB_KEYS[i]];
+      this.knobBars[i].fill.style.width = (v * 100) + '%';
+      this.knobBars[i].value.textContent = Math.round(v * 127);
+    }
+    for (let i = 0; i < 4; i++) {
+      const v = display[FADER_KEYS[i]];
+      this.faderBars[i].fill.style.width = (v * 100) + '%';
+      this.faderBars[i].value.textContent = Math.round(v * 127);
+    }
+
+    this.statusDot.className = state.midiConnected ? 'hud-dot online' : 'hud-dot';
+    this.statusText.textContent = state.midiConnected ? 'MINILAB 3 ONLINE' : 'NO DEVICE';
+
+    const elapsed = Math.floor((performance.now() - state.startTime) / 1000);
+    const hh = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+    const mm = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+    const ss = String(elapsed % 60).padStart(2, '0');
+    this.clockEl.textContent = 'T+' + hh + ':' + mm + ':' + ss;
+
+    this.sceneEl.textContent = SCENE_NAMES[state.activeScene] || 'UNKNOWN';
+    this.energyFill.style.width = (display.modWheel * 100) + '%';
+  }
+
+  flashPad(index, effectName) {
+    this.padFlashEl.textContent = 'PAD ' + (index + 1) + ' — ' + effectName;
+    this.padFlashEl.classList.add('active');
+    clearTimeout(this.padFlashTimeout);
+    this.padFlashTimeout = setTimeout(() => this.padFlashEl.classList.remove('active'), 400);
+  }
+
+  showLearn(index, total, label) {
+    this.learnModal.classList.add('active');
+    this.learnInstruction.textContent = label;
+    this.learnProgress.textContent = index + ' / ' + total;
+  }
+
+  hideLearn() {
+    this.learnModal.classList.remove('active');
+  }
+}
+
+// ============================================================
+// MAIN INIT
+// ============================================================
+const canvas_el = document.getElementById('canvas');
+const midi = new MIDIController();
+const audio = new AudioEngine();
+const visual = new VisualEngine(canvas_el);
+const hud = new HUD();
+
+let lastTime = 0;
+
+function smooth(dt) {
+  const f = 1 - Math.pow(0.001, dt);
+  for (let i = 0; i < KNOB_KEYS.length; i++) {
+    const k = KNOB_KEYS[i];
+    display[k] += (state[k] - display[k]) * f;
+  }
+  for (let i = 0; i < FADER_KEYS.length; i++) {
+    const k = FADER_KEYS[i];
+    display[k] += (state[k] - display[k]) * f;
+  }
+  display.pitchBend += (state.pitchBend - display.pitchBend) * f;
+  display.modWheel += (state.modWheel - display.modWheel) * f;
+  display.activeScene = state.activeScene;
+}
+
+function gameLoop(timestamp) {
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+  smooth(dt);
+  visual.update(dt);
+  visual.render(timestamp / 1000);
+  hud.update();
+  audio.updateParams();
+  requestAnimationFrame(gameLoop);
+}
+
+// Wire MIDI
+midi.on('connectionChange', (c) => { state.midiConnected = c; });
+
+midi.on('cc', ({ cc, value }) => {
+  const slot = midi.getSlotForCC(cc);
+  if (slot < 0) return;
+  const norm = value / 127;
+  if (slot < 8) state[KNOB_KEYS[slot]] = norm;
+  else state[FADER_KEYS[slot - 8]] = norm;
+});
+
+midi.on('modWheel', ({ value }) => { state.modWheel = value / 127; });
+midi.on('pitchBend', ({ value }) => { state.pitchBend = value; audio.applyPitchBend(value); });
+
+midi.on('noteOn', ({ channel, note, velocity }) => {
+  if (channel === 10) {
+    if (note >= 36 && note <= 43) {
+      const idx = note - 36;
+      visual.triggerEffect(idx, velocity);
+      audio.playPadHit(velocity);
+      hud.flashPad(idx, PAD_EFFECT_NAMES[idx]);
+    } else if (note >= 44 && note <= 51) {
+      state.activeScene = note - 44;
+    }
+  } else {
+    audio.noteOn(note, velocity);
+  }
+});
+
+midi.on('noteOff', ({ channel, note }) => {
+  if (channel !== 10) audio.noteOff(note);
+});
+
+midi.on('polyAftertouch', ({ note, pressure }) => {
+  if (note >= 36 && note <= 43 && pressure > 10) {
+    const idx = note - 36;
+    const I = pressure / 127;
+    for (let i = 0; i < Math.floor(I * 5); i++) {
+      const spread = (Math.random() - 0.5) * 1.5;
+      const spd = 2 + Math.random() * 3;
+      visual.emitParticle(
+        visual.cx + (Math.random() - 0.5) * 30, visual.cy,
+        Math.cos(spread) * spd * (Math.random() > 0.5 ? 1 : -1),
+        Math.sin(1.5708 + spread) * spd,
+        0.3 + Math.random() * 0.5, 1 + Math.random() * 2, idx * 45
+      );
+    }
+  }
+});
+
+midi.on('learnUpdate', ({ index, total, label }) => { hud.showLearn(index, total, label); });
+midi.on('learnComplete', () => { hud.hideLearn(); });
+
+document.getElementById('learn-skip').addEventListener('click', (e) => {
+  e.stopPropagation();
+  midi.skipLearn();
+});
+
+document.getElementById('recalibrate-btn').addEventListener('click', () => {
+  localStorage.removeItem('minilab3_cc_map');
+  midi.startLearn();
+});
+
+document.getElementById('start-screen').addEventListener('click', () => {
+  document.getElementById('start-screen').style.display = 'none';
+  audio.init();
+  state.startTime = performance.now();
+  midi.init().then(() => {
+    if (!midi.loadSavedMapping()) midi.startLearn();
+  });
+  lastTime = performance.now();
+  requestAnimationFrame(gameLoop);
+});
+</script>
+</body>
+</html>
