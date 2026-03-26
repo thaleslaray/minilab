@@ -612,7 +612,7 @@ class GameEngine {
       this.overlay.showControlHint('keys', 'TOQUE AS TECLAS BRANCAS');
     }
     else if (p === 1) { // POWER CALIBRATION
-      this.phaseData = { round: 0, rounds: [{min:20,max:50,label:'SUAVE'},{min:51,max:90,label:'MEDIO'},{min:91,max:127,label:'FORTE'}], attempts:0, totalAttempts:0, matched:false, matchTime:0, playerVel:0, showPlayer:false };
+      this.phaseData = { round: 0, rounds: [{min:1,max:50,label:'SUAVE'},{min:51,max:90,label:'MEDIO'},{min:91,max:127,label:'FORTE'}], attempts:0, totalAttempts:0, matched:false, matchTime:0, playerVel:0, showPlayer:false };
       this.visual.shipVisible = true; this.visual.shipX = this.visual.cx; this.visual.shipY = this.visual.cy;
       this.overlay.typeNarrative([
         'POTENCIA DO MOTOR INSTAVEL',
@@ -622,7 +622,7 @@ class GameEngine {
       this.overlay.showControlHint('keys', 'TOQUE AS TECLAS COM FORCA DIFERENTE');
     }
     else if (p === 2) { // SHIELD TUNING
-      this.phaseData = { filterValue: 0.5, targetMin: 0.55, targetMax: 0.70, inZoneTime: 0, locked: false, ccDetected: false, detectedCC: -1, hintTimer: 0, startTime: performance.now() };
+      this.phaseData = { filterValue: 0.5, filterAccumulator: 64, filterMode: null, targetMin: 0.55, targetMax: 0.70, inZoneTime: 0, locked: false, ccDetected: false, detectedCC: -1, hintTimer: 0, startTime: performance.now() };
       this.audio.setFilterDirect(0.5);
       this.audio.playDrone(60, 80);
       this.overlay.typeNarrative([
@@ -630,7 +630,7 @@ class GameEngine {
         'ESCUDOS PRECISAM DE ALINHAMENTO DE FREQUENCIA',
         'GIRE UM KNOB PARA ALINHAR A HARMONICA DO ESCUDO'
       ]);
-      this.overlay.showControlHint('knobs', 'GIRE UM KNOB OU MOVA UM FADER');
+      this.overlay.showControlHint('knobs', 'GIRE UM KNOB, MOVA UM FADER OU A TIRA MOD');
     }
     else if (p === 3) { // WORMHOLE
       const noteNames = {60:'DO (C)',64:'MI (E)',67:'SOL (G)',72:'DO agudo (C)'};
@@ -819,10 +819,20 @@ class GameEngine {
   onRawCC(cc, value) {
     if (this.state !== 'ACTIVE' || this.phase !== 2) return;
     const pd = this.phaseData;
-    if (cc === 1) return; // ignore mod wheel
-    if (!pd.ccDetected) { pd.ccDetected = true; pd.detectedCC = cc; }
+    if (!pd.ccDetected) {
+      pd.ccDetected = true; pd.detectedCC = cc;
+      // Auto-detect: relative encoders send tiny (1-15) or wrap-around (113-127) values per tick
+      pd.filterMode = (value <= 15 || value >= 113) ? 'rel' : 'abs';
+      if (pd.filterMode === 'abs') pd.filterAccumulator = value;
+    }
     if (cc !== pd.detectedCC) return;
-    pd.filterValue = value / 127;
+    if (pd.filterMode === 'rel') {
+      const delta = value <= 63 ? value : (value - 128);
+      pd.filterAccumulator = Math.max(0, Math.min(127, pd.filterAccumulator + delta));
+      pd.filterValue = pd.filterAccumulator / 127;
+    } else {
+      pd.filterValue = value / 127;
+    }
     this.audio.setFilterDirect(pd.filterValue);
     pd.hintTimer = 0;
   }
